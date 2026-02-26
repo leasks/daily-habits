@@ -2,8 +2,9 @@
 import os, httpx, json, logging
 from datetime import date
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_URL = "https://api.openai.com/v1/responses"
+TEST_MODE = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
 
 log = logging.getLogger("coach")
 
@@ -11,6 +12,10 @@ class OpenAIRateLimited(Exception):
     pass
 
 async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
+    if TEST_MODE:
+        log.info("[TEST MODE] generate_coaching called with keys: %s", list(payload.keys()))
+        return f"[TEST MODE] Coaching stub for: {list(payload.keys())}"
+
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
         "model": model,
