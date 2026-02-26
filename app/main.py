@@ -111,3 +111,7 @@ async def telegram_webhook(req: Request):
     await tg_send(chat_id, coaching_text)
     await tg_send(chat_id, "What will you do in the next 30 minutes? Reply with one action.")
     return {"ok": True}
+    
+@app.get("/")
+def root():
+    return {"status": "running"}
