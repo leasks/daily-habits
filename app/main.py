@@ -100,15 +100,22 @@ async def telegram_webhook(req: Request):
         "durable_memories": memories,
     }
 
-    coaching_text = await generate_coaching(coach_payload, model="gpt-4.1-mini")
+    try:
+        coaching_text = await generate_coaching(coach_payload, model="gpt-4.1-mini")
+    
+        with get_conn() as conn:
+            conn.execute(
+                "insert into coach_outputs (checkin_id, model, coaching_text) values (%s, %s, %s)",
+                (checkin_id, "gpt-4.1-mini", coaching_text),
+            )
+    
+        await tg_send(chat_id, coaching_text)
+    except OpenAIRateLimited:
+        # Return 200 so Telegram doesn't resend the same update repeatedly
+        await tg_send(chat_id, "I’m getting rate-limited by OpenAI right now. I’ll try again in a minute—please resend if needed.")
+    except Exception:
+        await tg_send(chat_id, "Something went wrong generating coaching. Check logs and try again.")
 
-    with get_conn() as conn:
-        conn.execute(
-            "insert into coach_outputs (checkin_id, model, coaching_text) values (%s, %s, %s)",
-            (checkin_id, "gpt-4.1-mini", coaching_text),
-        )
-
-    await tg_send(chat_id, coaching_text)
     await tg_send(chat_id, "What will you do in the next 30 minutes? Reply with one action.")
     return {"ok": True}
     
