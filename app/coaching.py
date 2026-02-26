@@ -1,9 +1,14 @@
 # app/coaching.py
-import os, httpx, json
+import os, httpx, json, logging
 from datetime import date
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 OPENAI_URL = "https://api.openai.com/v1/responses"
+
+log = logging.getLogger("coach")
+
+class OpenAIRateLimited(Exception):
+    pass
 
 async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
