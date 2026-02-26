@@ -17,8 +17,16 @@ async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
 
     async with httpx.AsyncClient(timeout=45) as client:
         r = await client.post(OPENAI_URL, headers=headers, json=body)
+
+    if r.status_code == 429:
+        log.error("OpenAI 429: %s", r.text)
+        raise OpenAIRateLimited(r.text)
+
+    if r.status_code >= 400:
+        log.error("OpenAI error %s: %s", r.status_code, r.text)
         r.raise_for_status()
-        data = r.json()
+
+    data = r.json()
 
     text = ""
     for item in data.get("output", []):
