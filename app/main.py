@@ -6,6 +6,7 @@ from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
 from app.parsing import parse_checkin
 from app.coaching import generate_coaching
+from app.coaching import OpenAIRateLimited
 
 JOB_SECRET = os.environ.get("JOB_SECRET", "")
 
