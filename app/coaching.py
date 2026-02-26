@@ -1,16 +1,41 @@
 # app/coaching.py
-import os, httpx, json, logging
+import json
+import logging
+import os
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+import httpx
+
+from app.runtime import is_test_mode
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_URL = "https://api.openai.com/v1/responses"
 
 log = logging.getLogger("coach")
+
 
 class OpenAIRateLimited(Exception):
     pass
 
 
 async def _responses_call(input_payload: list, model: str, timeout: int = 45) -> dict:
+    if is_test_mode():
+        prompt_blob = json.dumps(input_payload)
+        if "'patterns'" in prompt_blob or '"patterns"' in prompt_blob:
+            output_text = '{"patterns":[{"kind":"weekly_pattern","content":"Protect deep work blocks","importance":9}]}'
+        elif "achieved_goals" in prompt_blob:
+            output_text = (
+                '{"achieved_goals":["Ship main task"],"unachieved_goals":["Inbox cleanup"],'
+                '"worked_well":"Focused blocks","did_not_work":"Late context switching",'
+                '"reflection_summary":"Strong delivery with room to reduce context switches",'
+                '"next_day_prompt":"Do you want to roll over Inbox cleanup or build on shipped work?"}'
+            )
+        else:
+            output_text = "Mocked coaching plan: prioritize one meaningful outcome and pre-commit if-then blockers."
+        return {"output": [{"content": [{"type": "output_text", "text": output_text}]}]}
+
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is required when not in TEST_MODE")
+
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
         "model": model,
@@ -38,6 +63,7 @@ def _extract_output_text(data: dict) -> str:
             if c.get("type") == "output_text":
                 text += c.get("text", "")
     return text
+
 
 async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
     data = await _responses_call(

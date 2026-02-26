@@ -1,7 +1,10 @@
 # app/daily_ping.py
+import argparse
 import asyncio
+import os
 
 from app.db import get_conn
+from app.runtime import is_test_mode
 from app.telegram import tg_send
 
 BASE_PROMPT = (
@@ -49,14 +52,26 @@ def _build_prompt_for_user(user_id: int) -> str:
     )
 
 
-async def main():
+async def main(test_mode: bool | None = None):
+    if is_test_mode(test_mode):
+        return {"ok": True, "test_mode": True, "sent": 0}
+
     with get_conn() as conn:
         users = conn.execute("select id, channel_user_id from users where channel='telegram'").fetchall()
 
+    sent = 0
     for user_id, chat_id in users:
         prompt = _build_prompt_for_user(int(user_id))
         await tg_send(str(chat_id), prompt)
+        sent += 1
+
+    return {"ok": True, "sent": sent}
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test-mode", action="store_true", help="Run without external DB/OpenAI/Telegram calls")
+    args = parser.parse_args()
+    if args.test_mode:
+        os.environ["TEST_MODE"] = "1"
+    asyncio.run(main(test_mode=args.test_mode))
