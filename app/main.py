@@ -1,5 +1,5 @@
 # app/main.py
-import os, json
+import os, json, logging
 from fastapi import FastAPI, Request
 from datetime import date
 from app.db import get_conn
@@ -11,23 +11,30 @@ from app.coaching import OpenAIRateLimited
 JOB_SECRET = os.environ.get("JOB_SECRET", "")
 
 app = FastAPI()
+log = logging.getLogger("main")
 
 
-def upsert_user(channel: str, channel_user_id: str) -> tuple:
+def upsert_user(channel: str, channel_user_id: str, from_id: str | None) -> tuple:
+    """Insert or retrieve a user row.
+
+    On first insert the telegram_from_id is recorded.  On subsequent calls the
+    stored from_id is left unchanged so it can be used for sender validation.
+    Returns (user_id, pending_reply_type, stored_from_id).
+    """
     with get_conn() as conn:
         row = conn.execute(
             """
-            insert into users (channel, channel_user_id)
-            values (%s, %s)
+            insert into users (channel, channel_user_id, telegram_from_id)
+            values (%s, %s, %s)
             on conflict (channel, channel_user_id) do update
               set channel_user_id = excluded.channel_user_id
-            returning id, pending_reply_type
+            returning id, pending_reply_type, telegram_from_id
             """,
-            (channel, channel_user_id),
+            (channel, channel_user_id, from_id),
         ).fetchone()
         if row is None:
-            return 0, "checkin"
-        return int(row[0]), row[1] or "checkin"
+            return 0, "checkin", None
+        return int(row[0]), row[1] or "checkin", row[2]
 
 
 def fetch_context(user_id: int):
@@ -160,11 +167,25 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
 @app.post("/webhooks/telegram")
 async def telegram_webhook(req: Request):
     update = await req.json()
-    chat_id, text = extract_chat_id_and_text(update)
+    chat_id, text, from_id = extract_chat_id_and_text(update)
     if not chat_id or not text:
         return {"ok": True}
 
-    user_id, pending_type = upsert_user("telegram", chat_id)
+    user_id, pending_type, stored_from_id = upsert_user("telegram", chat_id, from_id)
+
+    # Validate that the sender matches the registered user for this chat.
+    # A legitimate Telegram message always carries a from.id.  If from_id is
+    # absent on a message sent to an already-registered chat, or if it differs
+    # from the stored value, the request is silently dropped to prevent
+    # spoofing / misuse by unauthorised users.
+    if stored_from_id is not None and (
+        from_id is None or stored_from_id != from_id
+    ):
+        log.warning(
+            "Sender mismatch for chat %s: expected from_id=%s got %s — ignoring",
+            chat_id, stored_from_id, from_id,
+        )
+        return {"ok": True}
 
     if pending_type == "eod":
         await _handle_reflection(chat_id, user_id, text)

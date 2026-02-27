@@ -1,10 +1,11 @@
 -- Users
 CREATE TABLE IF NOT EXISTS users (
-    id               SERIAL PRIMARY KEY,
-    channel          VARCHAR(50)  NOT NULL,
-    channel_user_id  VARCHAR(100) NOT NULL,
-    pending_reply_type VARCHAR(20) DEFAULT 'checkin',
-    created_at       TIMESTAMPTZ  DEFAULT NOW(),
+    id                 SERIAL PRIMARY KEY,
+    channel            VARCHAR(50)  NOT NULL,
+    channel_user_id    VARCHAR(100) NOT NULL,
+    pending_reply_type VARCHAR(20)  DEFAULT 'checkin',
+    telegram_from_id   VARCHAR(100),
+    created_at         TIMESTAMPTZ  DEFAULT NOW(),
     UNIQUE (channel, channel_user_id)
 );
 

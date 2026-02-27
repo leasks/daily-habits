@@ -21,8 +21,10 @@ async def tg_send(chat_id: str, text: str):
 def extract_chat_id_and_text(update: dict):
     msg = update.get("message") or {}
     chat = msg.get("chat") or {}
+    sender = msg.get("from") or {}
     chat_id = chat.get("id")
+    from_id = sender.get("id")
     text = msg.get("text")
     if chat_id is None or not text:
-        return None, None
-    return str(chat_id), text
+        return None, None, None
+    return str(chat_id), text, str(from_id) if from_id is not None else None
