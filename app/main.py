@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from datetime import date
 from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
-from app.parsing import parse_checkin, parse_reflection
+from app.parsing import parse_checkin, parse_reflection, parse_intraday
 from app.coaching import generate_coaching
 from app.coaching import OpenAIRateLimited
 
@@ -70,7 +70,7 @@ def fetch_context(user_id: int):
 
 
 async def _handle_checkin(chat_id: str, user_id: int, text: str):
-    parsed = parse_checkin(text)
+    parsed = await parse_checkin(text)
 
     if not parsed["goals"]:
         await tg_send(chat_id, "I didn't catch goals. Reply with 3-5 bullet goals.")
@@ -124,7 +124,7 @@ async def _handle_checkin(chat_id: str, user_id: int, text: str):
 
 
 async def _handle_reflection(chat_id: str, user_id: int, text: str):
-    parsed = parse_reflection(text)
+    parsed = await parse_reflection(text)
 
     with get_conn() as conn:
         conn.execute(
@@ -148,7 +148,7 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
 
 
 async def _handle_intraday(chat_id: str, user_id: int, text: str):
-    parsed = parse_checkin(text)
+    parsed = await parse_intraday(text)
 
     if parsed["goals"]:
         with get_conn() as conn:
