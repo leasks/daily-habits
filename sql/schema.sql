@@ -1,3 +1,13 @@
+-- Application role ─────────────────────────────────────────────────────────
+-- All application connections must authenticate as (or be granted) this role.
+-- See README.md for setup instructions.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app') THEN
+    CREATE ROLE app;
+  END IF;
+END$$;
+
 -- Users
 CREATE TABLE IF NOT EXISTS users (
     id                 SERIAL PRIMARY KEY,
@@ -55,3 +65,47 @@ CREATE TABLE IF NOT EXISTS coach_outputs (
     coaching_text TEXT,
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Row Level Security ──────────────────────────────────────────────────────────
+-- Grant the app role access to all tables and sequences.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app;
+
+-- Enable RLS on every table; FORCE ensures it applies to the table owner too.
+ALTER TABLE users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users             FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE daily_checkins    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_checkins    FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE daily_reflections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_reflections FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE memories          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE memories          FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE coach_outputs     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE coach_outputs     FORCE ROW LEVEL SECURITY;
+
+-- Allow the app role unrestricted row access.
+-- Per-user data isolation is enforced at the application query level.
+-- CREATE POLICY does not support IF NOT EXISTS, so each policy is created
+-- inside a DO block that checks pg_policies first.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON users TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'daily_checkins' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON daily_checkins TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'daily_reflections' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON daily_reflections TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'memories' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON memories TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'coach_outputs' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON coach_outputs TO app USING (true) WITH CHECK (true);
+  END IF;
+END$$;
