@@ -1,5 +1,5 @@
 # app/daily_ping.py
-import os, asyncio, argparse, logging
+import os, asyncio, argparse, logging, json
 from app.db import get_conn
 from app.telegram import tg_send
 
@@ -36,6 +36,55 @@ PROMPTS = {
     "intraday": INTRADAY_PROMPT,
     "eod": EOD_PROMPT,
 }
+
+
+async def _fetch_today_goals(chat_id: str) -> list:
+    """Return today's goals list for the given chat_id, or empty list if none."""
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                select dc.goals
+                from daily_checkins dc
+                join users u on u.id = dc.user_id
+                where u.channel = 'telegram' and u.channel_user_id = %s
+                  and dc.checkin_date = current_date
+                limit 1
+                """,
+                (chat_id,),
+            ).fetchone()
+        if row and row[0]:
+            if isinstance(row[0], list):
+                return row[0]
+            try:
+                return json.loads(row[0])
+            except json.JSONDecodeError as exc:
+                log.warning("Malformed goals JSON for %s: %s", chat_id, exc)
+    except Exception as exc:
+        log.warning("Could not fetch today's goals for %s: %s", chat_id, exc)
+    return []
+
+
+def _format_goals_section(goals: list) -> str:
+    """Format a goals list as a bullet-point section string."""
+    goals_text = "\n".join(f"  • {g}" for g in goals)
+    return f"\n📋 Today's goals:\n{goals_text}\n"
+
+
+async def _intraday_prompt_for(chat_id: str) -> str:
+    """Return intraday prompt enriched with today's goals if available."""
+    goals = await _fetch_today_goals(chat_id)
+    if goals:
+        return INTRADAY_PROMPT + _format_goals_section(goals)
+    return INTRADAY_PROMPT
+
+
+async def _eod_prompt_for(chat_id: str) -> str:
+    """Return EOD prompt enriched with today's goals if available."""
+    goals = await _fetch_today_goals(chat_id)
+    if goals:
+        return EOD_PROMPT + _format_goals_section(goals)
+    return EOD_PROMPT
 
 
 async def _morning_prompt_for(chat_id: str) -> str:
@@ -77,6 +126,10 @@ async def main(mode: str = "morning"):
     for (chat_id,) in rows:
         if mode == "morning":
             prompt = await _morning_prompt_for(str(chat_id))
+        elif mode == "intraday":
+            prompt = await _intraday_prompt_for(str(chat_id))
+        elif mode == "eod":
+            prompt = await _eod_prompt_for(str(chat_id))
         else:
             prompt = PROMPTS[mode]
         await tg_send(str(chat_id), prompt)
