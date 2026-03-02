@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from datetime import date
 from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
-from app.parsing import parse_checkin, parse_reflection, parse_intraday
+from app.parsing import parse_checkin, parse_reflection, parse_intraday, ParseError
 from app.coaching import generate_coaching
 from app.coaching import OpenAIRateLimited
 
@@ -70,7 +70,11 @@ def fetch_context(user_id: int):
 
 
 async def _handle_checkin(chat_id: str, user_id: int, text: str):
-    parsed = await parse_checkin(text)
+    try:
+        parsed = await parse_checkin(text)
+    except ParseError:
+        await tg_send(chat_id, "Something went wrong processing your check-in. Please try again with your top 3–5 goals, most important outcome, any constraints, and biggest blocker.")
+        return
 
     if not parsed["goals"]:
         await tg_send(chat_id, "I didn't catch goals. Reply with 3-5 bullet goals.")
@@ -124,7 +128,11 @@ async def _handle_checkin(chat_id: str, user_id: int, text: str):
 
 
 async def _handle_reflection(chat_id: str, user_id: int, text: str):
-    parsed = await parse_reflection(text)
+    try:
+        parsed = await parse_reflection(text)
+    except ParseError:
+        await tg_send(chat_id, "Something went wrong processing your reflection. Please try again with your goals progress, wins, challenges, and learnings.")
+        return
 
     with get_conn() as conn:
         conn.execute(
@@ -148,7 +156,11 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
 
 
 async def _handle_intraday(chat_id: str, user_id: int, text: str):
-    parsed = await parse_intraday(text)
+    try:
+        parsed = await parse_intraday(text)
+    except ParseError:
+        await tg_send(chat_id, "Something went wrong processing your update. Please try again with any completed goals, new blockers, and what you're focusing on next.")
+        return
 
     if parsed["goals"]:
         with get_conn() as conn:

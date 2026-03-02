@@ -7,6 +7,10 @@ TEST_MODE = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
 
 log = logging.getLogger("parsing")
 
+
+class ParseError(Exception):
+    """Raised when the LLM response cannot be parsed into structured JSON."""
+
 _CHECKIN_SCHEMA = """{
   "goals": ["<goal 1>", "<goal 2>", "<...up to 5 goals>"],
   "importance": "<most important single outcome, or null>",
@@ -65,7 +69,7 @@ async def parse_checkin(text: str) -> dict:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         log.warning("LLM returned non-JSON for parse_checkin: %r", raw)
-        parsed = {}
+        raise ParseError("parse_checkin")
     goals = parsed.get("goals") or []
     if not isinstance(goals, list):
         goals = [goals] if goals else []
@@ -94,7 +98,7 @@ async def parse_reflection(text: str) -> dict:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         log.warning("LLM returned non-JSON for parse_reflection: %r", raw)
-        parsed = {}
+        raise ParseError("parse_reflection")
     return {
         "goals_progress": parsed.get("goals_progress") or None,
         "wins": parsed.get("wins") or None,
@@ -120,7 +124,7 @@ async def parse_intraday(text: str) -> dict:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         log.warning("LLM returned non-JSON for parse_intraday: %r", raw)
-        parsed = {}
+        raise ParseError("parse_intraday")
     goals = parsed.get("goals") or []
     if not isinstance(goals, list):
         goals = [goals] if goals else []
