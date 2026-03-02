@@ -47,17 +47,23 @@ ALTER TABLE coach_outputs     FORCE ROW LEVEL SECURITY;
 -- ── 4. Allow the app role full access to all rows ────────────────────────────
 -- The application manages per-user data isolation at the query level;
 -- the policy here simply gates access to the trusted application role.
-CREATE POLICY IF NOT EXISTS app_all ON users
-    TO app USING (true) WITH CHECK (true);
-
-CREATE POLICY IF NOT EXISTS app_all ON daily_checkins
-    TO app USING (true) WITH CHECK (true);
-
-CREATE POLICY IF NOT EXISTS app_all ON daily_reflections
-    TO app USING (true) WITH CHECK (true);
-
-CREATE POLICY IF NOT EXISTS app_all ON memories
-    TO app USING (true) WITH CHECK (true);
-
-CREATE POLICY IF NOT EXISTS app_all ON coach_outputs
-    TO app USING (true) WITH CHECK (true);
+-- CREATE POLICY does not support IF NOT EXISTS, so each policy is created
+-- inside a DO block that checks pg_policies first.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON users TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'daily_checkins' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON daily_checkins TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'daily_reflections' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON daily_reflections TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'memories' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON memories TO app USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'coach_outputs' AND policyname = 'app_all') THEN
+    CREATE POLICY app_all ON coach_outputs TO app USING (true) WITH CHECK (true);
+  END IF;
+END$$;
