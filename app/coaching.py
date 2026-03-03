@@ -11,7 +11,32 @@ log = logging.getLogger("coach")
 class OpenAIRateLimited(Exception):
     pass
 
-async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
+SYSTEM_PROMPT_CHECKIN = (
+    "You are a practical goals coach. Be direct. Provide a prioritized plan, "
+    "obstacles, if-then plans, and a next-30-minutes action."
+)
+
+SYSTEM_PROMPT_INTRADAY = (
+    "You are a practical goals coach reviewing a midday progress update. "
+    "Explicitly acknowledge each completed goal with encouragement. "
+    "Then provide clear, prioritized advice on what to focus on for the rest of the day, "
+    "taking into account any new blockers. Be direct and energizing."
+)
+
+SYSTEM_PROMPT_EOD = (
+    "You are a practical goals coach reviewing an end-of-day reflection. "
+    "Acknowledge and celebrate completed goals and wins. "
+    "Look for signs of procrastination or avoidance in any missed or incomplete goals—name "
+    "them honestly but constructively. Provide specific, actionable insights on how to "
+    "approach missed goals tomorrow. Be empathetic, direct, and encouraging."
+)
+
+
+async def generate_coaching(
+    payload: dict,
+    model: str = "gpt-4.1-mini",
+    system_prompt: str = SYSTEM_PROMPT_CHECKIN,
+) -> str:
     if TEST_MODE:
         log.info("[TEST MODE] generate_coaching called with keys: %s", list(payload.keys()))
         return f"[TEST MODE] Coaching stub for: {list(payload.keys())}"
@@ -20,7 +45,7 @@ async def generate_coaching(payload: dict, model: str = "gpt-4.1-mini") -> str:
     body = {
         "model": model,
         "input": [
-            {"role": "system", "content": "You are a practical goals coach. Be direct. Provide a prioritized plan, obstacles, if-then plans, and a next-30-minutes action."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(payload)},
         ],
     }
