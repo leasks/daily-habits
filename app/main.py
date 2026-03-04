@@ -5,8 +5,7 @@ from datetime import date
 from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
 from app.parsing import parse_checkin, parse_reflection, parse_intraday, ParseError
-from app.coaching import generate_coaching
-from app.coaching import OpenAIRateLimited
+from app.coaching import generate_coaching, OpenAIRateLimited, SYSTEM_PROMPT_INTRADAY, SYSTEM_PROMPT_EOD
 
 JOB_SECRET = os.environ.get("JOB_SECRET", "")
 
@@ -152,7 +151,27 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
              parsed["challenges"], parsed["learnings"]),
         )
 
-    await tg_send(chat_id, "Reflection saved. Great work today! \U0001f319")
+    recent_summaries, memories = fetch_context(user_id)
+
+    coach_payload = {
+        "today": str(date.today()),
+        "goals_progress": parsed["goals_progress"],
+        "wins": parsed["wins"],
+        "challenges": parsed["challenges"],
+        "learnings": parsed["learnings"],
+        "recent_history": recent_summaries,
+        "durable_memories": memories,
+    }
+
+    try:
+        coaching_text = await generate_coaching(
+            coach_payload, model="gpt-4.1-mini", system_prompt=SYSTEM_PROMPT_EOD
+        )
+        await tg_send(chat_id, coaching_text)
+    except OpenAIRateLimited:
+        await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
+    except Exception:
+        await tg_send(chat_id, "Reflection saved. Great work today! \U0001f319")
 
 
 async def _handle_intraday(chat_id: str, user_id: int, text: str):
@@ -173,7 +192,25 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
                 (json.dumps(parsed["goals"]), parsed["blocker"], user_id, date.today()),
             )
 
-    await tg_send(chat_id, "Got it - keep going! \U0001f4aa")
+    recent_summaries, memories = fetch_context(user_id)
+
+    coach_payload = {
+        "today": str(date.today()),
+        "completed_or_updated_goals": parsed["goals"],
+        "current_blocker": parsed["blocker"],
+        "recent_history": recent_summaries,
+        "durable_memories": memories,
+    }
+
+    try:
+        coaching_text = await generate_coaching(
+            coach_payload, model="gpt-4.1-mini", system_prompt=SYSTEM_PROMPT_INTRADAY
+        )
+        await tg_send(chat_id, coaching_text)
+    except OpenAIRateLimited:
+        await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
+    except Exception:
+        await tg_send(chat_id, "Got it - keep going! \U0001f4aa")
 
 
 @app.post("/webhooks/telegram")
