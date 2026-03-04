@@ -68,6 +68,31 @@ def fetch_context(user_id: int):
     return recent_summaries, memories
 
 
+def _fetch_checkin_goals(user_id: int) -> list:
+    """Return today's goals from the morning check-in for the given user, or empty list."""
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                select goals
+                from daily_checkins
+                where user_id=%s and checkin_date=current_date
+                limit 1
+                """,
+                (user_id,),
+            ).fetchone()
+        if row and row[0]:
+            if isinstance(row[0], list):
+                return row[0]
+            try:
+                return json.loads(row[0])
+            except (json.JSONDecodeError, TypeError):
+                log.warning("Malformed goals JSON for user %s", user_id)
+    except Exception as exc:
+        log.warning("Could not fetch today's checkin goals for user %s: %s", user_id, exc)
+    return []
+
+
 async def _handle_checkin(chat_id: str, user_id: int, text: str):
     try:
         parsed = await parse_checkin(text)
@@ -152,9 +177,11 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
         )
 
     recent_summaries, memories = fetch_context(user_id)
+    morning_goals = _fetch_checkin_goals(user_id)
 
     coach_payload = {
         "today": str(date.today()),
+        "morning_goals": morning_goals,
         "goals_progress": parsed["goals_progress"],
         "wins": parsed["wins"],
         "challenges": parsed["challenges"],
@@ -181,6 +208,8 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
         await tg_send(chat_id, "Something went wrong processing your update. Please try again with any completed goals, new blockers, and what you're focusing on next.")
         return
 
+    morning_goals = _fetch_checkin_goals(user_id)
+
     if parsed["goals"]:
         with get_conn() as conn:
             conn.execute(
@@ -196,6 +225,7 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
 
     coach_payload = {
         "today": str(date.today()),
+        "morning_goals": morning_goals,
         "completed_or_updated_goals": parsed["goals"],
         "current_blocker": parsed["blocker"],
         "recent_history": recent_summaries,
