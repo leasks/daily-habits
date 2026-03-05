@@ -9,8 +9,19 @@ from app.coaching import generate_coaching, OpenAIRateLimited, SYSTEM_PROMPT_INT
 
 JOB_SECRET = os.environ.get("JOB_SECRET", "")
 
+DEFAULT_PENDING_REPLY_TYPE = "checkin"
+
 app = FastAPI()
 log = logging.getLogger("main")
+
+
+def reset_pending_reply_type(user_id: int) -> None:
+    """Reset a user's pending_reply_type to the default after an intraday or EOD response is handled."""
+    with get_conn() as conn:
+        conn.execute(
+            "update users set pending_reply_type=%s where id=%s",
+            (DEFAULT_PENDING_REPLY_TYPE, user_id),
+        )
 
 
 def upsert_user(channel: str, channel_user_id: str, from_id: str | None) -> tuple:
@@ -32,8 +43,8 @@ def upsert_user(channel: str, channel_user_id: str, from_id: str | None) -> tupl
             (channel, channel_user_id, from_id),
         ).fetchone()
         if row is None:
-            return 0, "checkin", None
-        return int(row[0]), row[1] or "checkin", row[2]
+            return 0, DEFAULT_PENDING_REPLY_TYPE, None
+        return int(row[0]), row[1] or DEFAULT_PENDING_REPLY_TYPE, row[2]
 
 
 def fetch_context(user_id: int):
@@ -267,9 +278,15 @@ async def telegram_webhook(req: Request):
         return {"ok": True}
 
     if pending_type == "eod":
-        await _handle_reflection(chat_id, user_id, text)
+        try:
+            await _handle_reflection(chat_id, user_id, text)
+        finally:
+            reset_pending_reply_type(user_id)
     elif pending_type == "intraday":
-        await _handle_intraday(chat_id, user_id, text)
+        try:
+            await _handle_intraday(chat_id, user_id, text)
+        finally:
+            reset_pending_reply_type(user_id)
     else:
         await _handle_checkin(chat_id, user_id, text)
 
