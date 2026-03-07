@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS daily_checkins (
     checkin_date  DATE NOT NULL,
     raw_message   TEXT,
     goals         JSONB,
+    goal_updates  JSONB,
     importance    TEXT,
     constraints   TEXT,
     blocker       TEXT,

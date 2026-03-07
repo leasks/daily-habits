@@ -4,15 +4,18 @@ Weekly review script.
 
 Fetches the previous week's check-ins and reflections for each user,
 asks the LLM to identify patterns and key insights, then stores the
-result as a durable memory.  Does NOT send any Telegram messages.
+result as a durable memory and sends it to the user via Telegram.
 """
 import asyncio, json, logging
 from datetime import date, timedelta
 
 from app.db import get_conn
 from app.coaching import generate_coaching
+from app.telegram import tg_send
 
 log = logging.getLogger("weekly_review")
+
+WEEKLY_REVIEW_MESSAGE_TEMPLATE = "📊 Weekly Review Insights\n\n{summary}"
 
 
 async def _build_summary(user_id: int) -> str:
@@ -87,13 +90,19 @@ async def _save_memory(user_id: int, content: str) -> None:
 
 async def main() -> None:
     with get_conn() as conn:
-        users = conn.execute("select id from users").fetchall()
+        users = conn.execute(
+            "select id, channel, channel_user_id from users"
+        ).fetchall()
 
-    for (user_id,) in users:
+    for (user_id, channel, channel_user_id) in users:
         try:
             summary = await _build_summary(user_id)
             await _save_memory(user_id, summary)
             log.info("Weekly review saved for user %s", user_id)
+            if channel == "telegram":
+                message = WEEKLY_REVIEW_MESSAGE_TEMPLATE.format(summary=summary)
+                await tg_send(str(channel_user_id), message)
+                log.info("Weekly review sent to user %s", user_id)
         except Exception as exc:
             log.error("Weekly review failed for user %s: %s", user_id, exc)
 
