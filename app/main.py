@@ -1,6 +1,6 @@
 # app/main.py
 import os, json, logging
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
 from datetime import date
 from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
@@ -282,8 +282,27 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
         await tg_send(chat_id, "Got it - keep going! \U0001f4aa")
 
 
+async def _dispatch(chat_id: str, user_id: int, text: str, pending_type: str):
+    """Route and process a Telegram message in the background."""
+    try:
+        if pending_type == "eod":
+            try:
+                await _handle_reflection(chat_id, user_id, text)
+            finally:
+                reset_pending_reply_type(user_id)
+        elif pending_type == "intraday":
+            try:
+                await _handle_intraday(chat_id, user_id, text)
+            finally:
+                reset_pending_reply_type(user_id)
+        else:
+            await _handle_checkin(chat_id, user_id, text)
+    except Exception:
+        log.exception("Unhandled error in background dispatch for chat %s", chat_id)
+
+
 @app.post("/webhooks/telegram")
-async def telegram_webhook(req: Request):
+async def telegram_webhook(req: Request, background_tasks: BackgroundTasks):
     update = await req.json()
     chat_id, text, from_id = extract_chat_id_and_text(update)
     if not chat_id or not text:
@@ -305,19 +324,11 @@ async def telegram_webhook(req: Request):
         )
         return {"ok": True}
 
-    if pending_type == "eod":
-        try:
-            await _handle_reflection(chat_id, user_id, text)
-        finally:
-            reset_pending_reply_type(user_id)
-    elif pending_type == "intraday":
-        try:
-            await _handle_intraday(chat_id, user_id, text)
-        finally:
-            reset_pending_reply_type(user_id)
-    else:
-        await _handle_checkin(chat_id, user_id, text)
-
+    # Schedule message processing as a background task so HTTP 200 is returned
+    # to Telegram immediately.  This prevents Telegram from retrying the same
+    # update when the combined LLM calls (parsing + coaching) take longer than
+    # Telegram's ~60 s webhook timeout, which was causing double responses.
+    background_tasks.add_task(_dispatch, chat_id, user_id, text, pending_type)
     return {"ok": True}
 
 
