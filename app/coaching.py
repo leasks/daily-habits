@@ -40,7 +40,7 @@ SYSTEM_PROMPT_EOD = (
 
 async def generate_coaching(
     payload: dict,
-    model: str = "gpt-4.1-mini",
+    model: str = "gpt-5-mini",
     system_prompt: str = SYSTEM_PROMPT_CHECKIN,
 ) -> str:
     if TEST_MODE:
