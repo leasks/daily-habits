@@ -172,12 +172,12 @@ async def _handle_checkin(chat_id: str, user_id: int, text: str):
     }
 
     try:
-        coaching_text = await generate_coaching(coach_payload, model="gpt-4.1-mini")
+        coaching_text = await generate_coaching(coach_payload, model="gpt-5-mini")
 
         with get_conn() as conn:
             conn.execute(
                 "insert into coach_outputs (checkin_id, model, coaching_text) values (%s, %s, %s)",
-                (checkin_id, "gpt-4.1-mini", coaching_text),
+                (checkin_id, "gpt-5-mini", coaching_text),
             )
 
         await tg_send(chat_id, coaching_text)
@@ -231,7 +231,7 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
 
     try:
         coaching_text = await generate_coaching(
-            coach_payload, model="gpt-4.1-mini", system_prompt=SYSTEM_PROMPT_EOD
+            coach_payload, model="gpt-5-mini", system_prompt=SYSTEM_PROMPT_EOD
         )
         await tg_send(chat_id, coaching_text)
     except OpenAIRateLimited:
@@ -273,7 +273,7 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
 
     try:
         coaching_text = await generate_coaching(
-            coach_payload, model="gpt-4.1-mini", system_prompt=SYSTEM_PROMPT_INTRADAY
+            coach_payload, model="gpt-5-mini", system_prompt=SYSTEM_PROMPT_INTRADAY
         )
         await tg_send(chat_id, coaching_text)
     except OpenAIRateLimited:
