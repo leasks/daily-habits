@@ -74,7 +74,7 @@ async def _build_summary(user_id: int) -> str:
         ),
     }
 
-    return await generate_coaching(payload, model="gpt-5-mini")
+    return await generate_coaching(payload)
 
 
 async def _save_memory(user_id: int, content: str) -> None:

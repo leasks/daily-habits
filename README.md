@@ -44,6 +44,7 @@ sql/
 | `TELEGRAM_BOT_TOKEN` | ✅ | Token from [@BotFather](https://t.me/BotFather) |
 | `OPENAI_API_KEY` | ✅ | OpenAI API key |
 | `JOB_SECRET` | ✅ | Shared secret for authenticating scheduled-job webhook calls |
+| `LLM_MODEL` | ❌ | OpenAI model to use for all LLM calls (default: `gpt-5.4-mini`) |
 | `TEST_MODE` | ❌ | Set to `1` / `true` / `yes` to use in-memory stubs instead of real DB / APIs |
 
 ## Database setup

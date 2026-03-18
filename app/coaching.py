@@ -4,6 +4,7 @@ from datetime import date
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_URL = "https://api.openai.com/v1/responses"
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-5.4-mini")
 TEST_MODE = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
 
 log = logging.getLogger("coach")
@@ -40,7 +41,7 @@ SYSTEM_PROMPT_EOD = (
 
 async def generate_coaching(
     payload: dict,
-    model: str = "gpt-5-mini",
+    model: str = LLM_MODEL,
     system_prompt: str = SYSTEM_PROMPT_CHECKIN,
 ) -> str:
     if TEST_MODE:
