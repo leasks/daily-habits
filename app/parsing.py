@@ -3,6 +3,7 @@ import os, json, logging, httpx
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_URL = "https://api.openai.com/v1/responses"
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-5.4-mini")
 TEST_MODE = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
 
 log = logging.getLogger("parsing")
@@ -34,7 +35,7 @@ _INTRADAY_SCHEMA = """{
 async def _call_llm(system_prompt: str, user_text: str) -> str:
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
-        "model": "gpt-4.1-mini",
+        "model": LLM_MODEL,
         "input": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
