@@ -2,6 +2,7 @@
 import os
 import logging
 import httpx
+from .formatting import markdown_to_html
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -13,16 +14,42 @@ log = logging.getLogger("telegram")
 MAX_MSG_LEN = 4096
 
 
+def _split_message(text: str, max_len: int = MAX_MSG_LEN) -> list[str]:
+    """Split *text* into chunks of at most *max_len* characters.
+
+    Prefers splitting at paragraph breaks (blank lines) then at single
+    newlines so that HTML tags are less likely to be severed mid-tag.
+    """
+    if len(text) <= max_len:
+        return [text]
+    chunks: list[str] = []
+    while len(text) > max_len:
+        pos = text.rfind("\n\n", 0, max_len)
+        if pos == -1:
+            pos = text.rfind("\n", 0, max_len)
+        if pos == -1:
+            pos = max_len
+        chunks.append(text[:pos].rstrip("\n"))
+        text = text[pos:].lstrip("\n")
+    if text:
+        chunks.append(text)
+    return chunks
+
+
 async def tg_send(chat_id: str, text: str):
     if TEST_MODE:
         log.info("[TEST MODE] tg_send to %s: %s", chat_id, text)
         return
     if not text:
         return
-    chunks = [text[i:i + MAX_MSG_LEN] for i in range(0, len(text), MAX_MSG_LEN)]
+    html_text = markdown_to_html(text)
+    chunks = _split_message(html_text)
     async with httpx.AsyncClient(timeout=20) as client:
         for chunk in chunks:
-            r = await client.post(f"{API_BASE}/sendMessage", json={"chat_id": chat_id, "text": chunk})
+            r = await client.post(
+                f"{API_BASE}/sendMessage",
+                json={"chat_id": chat_id, "text": chunk, "parse_mode": "HTML"},
+            )
             r.raise_for_status()
 
 def extract_chat_id_and_text(update: dict):
