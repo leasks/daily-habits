@@ -66,6 +66,7 @@ async def generate_coaching(
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
 
+    log.debug("generate_coaching: model=%s payload_keys=%s", model, list(payload.keys()))
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
         "model": model,
@@ -93,4 +94,6 @@ async def generate_coaching(
         for c in item.get("content", []):
             if c.get("type") == "output_text":
                 text += c.get("text", "")
+    if not text:
+        log.warning("generate_coaching: no output_text extracted from response; raw data: %s", data)
     return text or "I generated a plan but couldn’t extract text. (We can adjust output formatting.)"
