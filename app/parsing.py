@@ -31,6 +31,10 @@ _INTRADAY_SCHEMA = """{
   "blocker": "<new or updated blocker, or null>"
 }"""
 
+_CLASSIFICATION_SCHEMA = """{
+  "type": "<goals_response or leadership_question>"
+}"""
+
 
 async def _call_llm(system_prompt: str, user_text: str) -> str:
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
@@ -133,3 +137,37 @@ async def parse_intraday(text: str) -> dict:
         "goals": [str(g) for g in goals[:5]],
         "blocker": parsed.get("blocker") or None,
     }
+
+
+async def classify_message(text: str) -> str:
+    """Classify a user message as 'goals_response' or 'leadership_question'.
+
+    Returns 'goals_response' by default when the classification is ambiguous or
+    the LLM call fails, so that unrecognised messages fall through to the
+    existing goals-coaching pipeline.
+    """
+    if TEST_MODE:
+        log.info("[TEST MODE] classify_message stub")
+        return "goals_response"
+
+    system_prompt = (
+        "You are a message classifier. Determine whether the user's message is:\n"
+        "- 'goals_response': A reply related to daily goal progress -- listing tasks, "
+        "goals, blockers, wins, progress updates, or reflections on their work day.\n"
+        "- 'leadership_question': A question or request about leadership "
+        "development, management, team dynamics, organisational skills, or personal "
+        "effectiveness as a leader.\n\n"
+        "Return ONLY a JSON object matching this schema:\n"
+        + _CLASSIFICATION_SCHEMA
+        + "\nDo not include markdown fences or any text outside the JSON object."
+    )
+    raw = await _call_llm(system_prompt, text)
+    try:
+        parsed = json.loads(raw)
+        msg_type = parsed.get("type", "goals_response")
+        if msg_type not in ("goals_response", "leadership_question"):
+            return "goals_response"
+        return msg_type
+    except json.JSONDecodeError:
+        log.warning("LLM returned non-JSON for classify_message: %r", raw)
+        return "goals_response"
