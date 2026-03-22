@@ -63,6 +63,9 @@ async def generate_coaching(
         log.info("[TEST MODE] generate_coaching called with keys: %s", list(payload.keys()))
         return f"[TEST MODE] Coaching stub for: {list(payload.keys())}"
 
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
         "model": model,
