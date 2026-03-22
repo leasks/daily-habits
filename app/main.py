@@ -185,6 +185,7 @@ async def _handle_checkin(chat_id: str, user_id: int, text: str):
         # Return 200 so Telegram doesn't resend the same update repeatedly
         await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
     except Exception:
+        log.exception("generate_coaching failed for checkin (chat=%s user=%s)", chat_id, user_id)
         await tg_send(chat_id, "Something went wrong generating coaching. Check logs and try again.")
 
 
@@ -237,6 +238,7 @@ async def _handle_reflection(chat_id: str, user_id: int, text: str):
     except OpenAIRateLimited:
         await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
     except Exception:
+        log.exception("generate_coaching failed for reflection (chat=%s user=%s)", chat_id, user_id)
         await tg_send(chat_id, "Reflection saved. Great work today! \U0001f319")
 
 
@@ -279,6 +281,7 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
     except OpenAIRateLimited:
         await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
     except Exception:
+        log.exception("generate_coaching failed for intraday (chat=%s user=%s)", chat_id, user_id)
         await tg_send(chat_id, "Got it - keep going! \U0001f4aa")
 
 
@@ -299,6 +302,7 @@ async def _handle_leadership(chat_id: str, user_id: int, text: str):
     except OpenAIRateLimited:
         await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
     except Exception:
+        log.exception("generate_coaching failed for leadership (chat=%s user=%s)", chat_id, user_id)
         await tg_send(chat_id, "Something went wrong generating a response. Please try again.")
 
 

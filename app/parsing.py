@@ -37,6 +37,7 @@ _CLASSIFICATION_SCHEMA = """{
 
 
 async def _call_llm(system_prompt: str, user_text: str) -> str:
+    log.debug("_call_llm: requesting model=%s user_text_len=%d", LLM_MODEL, len(user_text))
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     body = {
         "model": LLM_MODEL,
@@ -47,13 +48,17 @@ async def _call_llm(system_prompt: str, user_text: str) -> str:
     }
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(OPENAI_URL, headers=headers, json=body)
-    r.raise_for_status()
+    if r.status_code >= 400:
+        log.error("_call_llm: HTTP %s from OpenAI: %s", r.status_code, r.text)
+        r.raise_for_status()
     data = r.json()
     text = ""
     for item in data.get("output", []):
         for c in item.get("content", []):
             if c.get("type") == "output_text":
                 text += c.get("text", "")
+    if not text:
+        log.warning("_call_llm: no output_text extracted from response; raw data: %s", data)
     return text
 
 
