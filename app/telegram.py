@@ -10,13 +10,20 @@ TEST_MODE = os.environ.get("TEST_MODE", "").lower() in ("1", "true", "yes")
 log = logging.getLogger("telegram")
 
 
+MAX_MSG_LEN = 4096
+
+
 async def tg_send(chat_id: str, text: str):
     if TEST_MODE:
         log.info("[TEST MODE] tg_send to %s: %s", chat_id, text)
         return
+    if not text:
+        return
+    chunks = [text[i:i + MAX_MSG_LEN] for i in range(0, len(text), MAX_MSG_LEN)]
     async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(f"{API_BASE}/sendMessage", json={"chat_id": chat_id, "text": text})
-        r.raise_for_status()
+        for chunk in chunks:
+            r = await client.post(f"{API_BASE}/sendMessage", json={"chat_id": chat_id, "text": chunk})
+            r.raise_for_status()
 
 def extract_chat_id_and_text(update: dict):
     msg = update.get("message") or {}
