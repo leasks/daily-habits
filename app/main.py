@@ -4,8 +4,8 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from datetime import date
 from app.db import get_conn
 from app.telegram import extract_chat_id_and_text, tg_send
-from app.parsing import parse_checkin, parse_reflection, parse_intraday, ParseError
-from app.coaching import generate_coaching, OpenAIRateLimited, SYSTEM_PROMPT_INTRADAY, SYSTEM_PROMPT_EOD, LLM_MODEL
+from app.parsing import parse_checkin, parse_reflection, parse_intraday, classify_message, ParseError
+from app.coaching import generate_coaching, OpenAIRateLimited, SYSTEM_PROMPT_INTRADAY, SYSTEM_PROMPT_EOD, SYSTEM_PROMPT_LEADERSHIP, LLM_MODEL
 
 JOB_SECRET = os.environ.get("JOB_SECRET", "")
 
@@ -282,6 +282,26 @@ async def _handle_intraday(chat_id: str, user_id: int, text: str):
         await tg_send(chat_id, "Got it - keep going! \U0001f4aa")
 
 
+async def _handle_leadership(chat_id: str, user_id: int, text: str):
+    recent_summaries, memories = fetch_context(user_id)
+
+    coach_payload = {
+        "question": text,
+        "recent_history": recent_summaries,
+        "durable_memories": memories,
+    }
+
+    try:
+        coaching_text = await generate_coaching(
+            coach_payload, system_prompt=SYSTEM_PROMPT_LEADERSHIP
+        )
+        await tg_send(chat_id, coaching_text)
+    except OpenAIRateLimited:
+        await tg_send(chat_id, "I'm getting rate-limited by OpenAI right now. I'll try again in a minute—please resend if needed.")
+    except Exception:
+        await tg_send(chat_id, "Something went wrong generating a response. Please try again.")
+
+
 async def _dispatch(chat_id: str, user_id: int, text: str, pending_type: str):
     """Route and process a Telegram message in the background."""
     try:
@@ -296,7 +316,11 @@ async def _dispatch(chat_id: str, user_id: int, text: str, pending_type: str):
             finally:
                 reset_pending_reply_type(user_id)
         else:
-            await _handle_checkin(chat_id, user_id, text)
+            msg_type = await classify_message(text)
+            if msg_type == "leadership_question":
+                await _handle_leadership(chat_id, user_id, text)
+            else:
+                await _handle_checkin(chat_id, user_id, text)
     except Exception:
         log.exception("Unhandled error in background dispatch for chat %s", chat_id)
 

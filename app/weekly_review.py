@@ -10,7 +10,7 @@ import asyncio, json, logging
 from datetime import date, timedelta
 
 from app.db import get_conn
-from app.coaching import generate_coaching
+from app.coaching import generate_coaching, SYSTEM_PROMPT_WEEKLY_REVIEW
 from app.telegram import tg_send
 
 log = logging.getLogger("weekly_review")
@@ -74,7 +74,7 @@ async def _build_summary(user_id: int) -> str:
         ),
     }
 
-    return await generate_coaching(payload)
+    return await generate_coaching(payload, system_prompt=SYSTEM_PROMPT_WEEKLY_REVIEW)
 
 
 async def _save_memory(user_id: int, content: str) -> None:
